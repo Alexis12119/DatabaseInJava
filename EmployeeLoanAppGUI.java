@@ -221,11 +221,17 @@ public class EmployeeLoanAppGUI {
                         if (resultSet.next()) {
                             String employeeInfo = String.format(
                                     "<html><table border='1' cellpadding='5'>" +
-                                            "<tr><th>Name</th><th>Position</th><th>DeptCode</th></tr>" +
-                                            "<tr><td>%s</td><td>%s</td><td>%s</td></tr>" +
+                                            "<tr><th>Employee ID</th><th>Name</th><th>Position</th><th>Salary</th><th>Age</th><th>Address</th><th>DeptCode</th></tr>"
+                                            +
+                                            "<tr><td>%s</td><td>%s</td><td>%s</td><td>%.2f</td><td>%d</td><td>%s</td><td>%s</td></tr>"
+                                            +
                                             "</table></html>",
+                                    resultSet.getInt("Eid"),
                                     resultSet.getString("Name"),
                                     resultSet.getString("Position"),
+                                    resultSet.getDouble("Salary"),
+                                    resultSet.getInt("Age"),
+                                    resultSet.getString("Address"),
                                     resultSet.getString("DeptCode"));
                             JOptionPane.showMessageDialog(null, employeeInfo);
                         } else {
@@ -428,7 +434,7 @@ public class EmployeeLoanAppGUI {
     }
 
     private static boolean isValidInput(String input) {
-        return input != null && !input.isEmpty();
+        return input != null && !input.isEmpty() && input.matches("^[a-zA-Z ]+$");
     }
 
     // Helper method to check if eid already exists
