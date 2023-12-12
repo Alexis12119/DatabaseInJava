@@ -138,17 +138,15 @@ public class EmployeeLoanAppGUI {
         JButton updateEmployeeBtn = new JButton("Update Employee");
         JButton deleteEmployeeBtn = new JButton("Delete Employee");
         JButton showLoanButton = new JButton("Show Loan Amount");
-        JButton applyNewLoanButton = new JButton("Apply New Loan");
-        JButton removeLoanButton = new JButton("Remove Loan");
         JButton getDeptInfoButton = new JButton("Get Department Info"); // Add the new button
+        JButton manageLoansButton = new JButton("Manage Loans");
 
         addEmployeeBtn.addActionListener(e -> showAddEmployeeDialog());
         updateEmployeeBtn.addActionListener(e -> showUpdateEmployeeDialog());
         deleteEmployeeBtn.addActionListener(e -> deleteEmployee());
         showLoanButton.addActionListener(e -> showLoanAmountForSelectedEmployee());
-        applyNewLoanButton.addActionListener(e -> applyNewLoanForSelectedEmployee());
-        removeLoanButton.addActionListener(e -> removeLoanForSelectedEmployee());
-        getDeptInfoButton.addActionListener(e -> getDeptInfoForSelectedEmployee()); // Add action listener
+        getDeptInfoButton.addActionListener(e -> getDeptInfoForSelectedEmployee());
+        manageLoansButton.addActionListener(e -> manageLoansForSelectedEmployee());
 
         buttonPanel.setLayout(new GridLayout(2, 3)); // Adjust the number of rows and columns as needed
 
@@ -156,8 +154,7 @@ public class EmployeeLoanAppGUI {
         buttonPanel.add(updateEmployeeBtn);
         buttonPanel.add(deleteEmployeeBtn);
         buttonPanel.add(showLoanButton);
-        buttonPanel.add(applyNewLoanButton);
-        buttonPanel.add(removeLoanButton);
+        buttonPanel.add(manageLoansButton);
         buttonPanel.add(getDeptInfoButton);
 
         // Create a new panel for search at the top
@@ -187,32 +184,253 @@ public class EmployeeLoanAppGUI {
         container.add(buttonPanel, BorderLayout.SOUTH);
     }
 
-    private void removeLoanForSelectedEmployee() {
+    private void manageLoansForSelectedEmployee() {
         int selectedRow = employeeTable.getSelectedRow();
         if (selectedRow == -1) {
-            JOptionPane.showMessageDialog(null, "Please select an employee to remove the loan.");
+            JOptionPane.showMessageDialog(null, "Please select an employee to manage loans.");
             return;
         }
 
         int eid = (int) tableModel.getValueAt(selectedRow, 0);
 
+        // Fetch loans for the selected employee from the database
+        DefaultTableModel loansTableModel = new DefaultTableModel();
+        loansTableModel.addColumn("Loan Amount");
+        loansTableModel.addColumn("Date");
+
         try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
-            String sql = "DELETE FROM Loan WHERE Eid = ?";
+            String sql = "SELECT LoanAmount, Date FROM Loan WHERE Eid = ?";
             try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
                 preparedStatement.setInt(1, eid);
 
+                try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                    while (resultSet.next()) {
+                        Object[] rowData = {
+                                resultSet.getInt("LoanAmount"),
+                                resultSet.getString("Date")
+                        };
+
+                        loansTableModel.addRow(rowData);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error occurred: " + e.getMessage());
+            return;
+        }
+
+        // Create a new JFrame for displaying loans
+        JFrame loansFrame = new JFrame("Employee Loans");
+        loansFrame.setLayout(new BorderLayout());
+        loansFrame.setSize(400, 300);
+
+        // Add a table for displaying loans
+        JTable loansTable = new JTable(loansTableModel) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false; // Make all cells non-editable
+            }
+        };
+
+        loansTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION); // Allow only single-row selection
+
+        JScrollPane loansScrollPane = new JScrollPane(loansTable);
+        loansFrame.add(loansScrollPane, BorderLayout.CENTER);
+
+        // Add buttons for applying new loan, updating, and deleting
+        JButton applyNewLoanButton = new JButton("Apply New Loan");
+        JButton updateLoanButton = new JButton("Update Loan");
+        JButton deleteLoanButton = new JButton("Delete Loan");
+
+        applyNewLoanButton.addActionListener(e -> applyNewLoanForSelectedEmployee(eid, loansTableModel));
+        updateLoanButton.addActionListener(e -> updateSelectedLoan(eid, loansTable));
+        deleteLoanButton.addActionListener(e -> deleteSelectedLoan(eid, loansTable));
+
+        JPanel buttonsPanel = new JPanel();
+        buttonsPanel.add(applyNewLoanButton);
+        buttonsPanel.add(updateLoanButton);
+        buttonsPanel.add(deleteLoanButton);
+
+        loansFrame.add(buttonsPanel, BorderLayout.SOUTH);
+
+        // Set the location of the frame to be centered on the screen
+        loansFrame.setLocationRelativeTo(null);
+        // Show the JFrame
+        loansFrame.setVisible(true);
+    }
+
+    private void applyNewLoanForSelectedEmployee(int eid, DefaultTableModel loansTableModel) {
+        JTextField loanAmountField = new JTextField();
+        loanAmountField.setColumns(10);
+
+        loanAmountField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyTyped(KeyEvent e) {
+                char c = e.getKeyChar();
+                if (!Character.isDigit(c)) {
+                    e.consume(); // Ignore non-numeric characters
+                }
+            }
+        });
+
+        Object[] message = {
+                "Enter new loan amount:", loanAmountField
+        };
+
+        int result = JOptionPane.showConfirmDialog(null, message, "Apply New Loan", JOptionPane.OK_CANCEL_OPTION);
+
+        if (result == JOptionPane.OK_OPTION) {
+            String loanAmountStr = loanAmountField.getText();
+            if (!loanAmountStr.isEmpty()) {
+                int newLoanAmount = Integer.parseInt(loanAmountStr);
+
+                try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
+                    String sql = "INSERT INTO Loan (Eid, LoanAmount, Date) VALUES (?, ?, CURRENT_DATE)";
+                    try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+                        preparedStatement.setInt(1, eid);
+                        preparedStatement.setInt(2, newLoanAmount);
+
+                        int rowsAffected = preparedStatement.executeUpdate();
+                        if (rowsAffected > 0) {
+                            JOptionPane.showMessageDialog(null, "New loan applied successfully.");
+                            // Refresh the loans table after applying a new loan
+                            refreshLoansTable(eid, loansTableModel);
+                        } else {
+                            JOptionPane.showMessageDialog(null, "Failed to apply a new loan.");
+                        }
+                    }
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                    // Handle the exception appropriately
+                    JOptionPane.showMessageDialog(null, "Error occurred: " + ex.getMessage());
+                }
+            } else {
+                JOptionPane.showMessageDialog(null, "Please enter a valid loan amount.");
+            }
+        }
+    }
+
+    private void updateSelectedLoan(int eid, JTable loansTable) {
+        int selectedRow = loansTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(null, "Please select a loan to update.");
+            return;
+        }
+
+        // Assuming that you want to update the loan amount
+        String date = loansTable.getValueAt(selectedRow, 1).toString();
+
+        // Prompt the user for the new loan amount
+        JTextField newLoanAmountField = new JTextField();
+        newLoanAmountField.setColumns(10);
+
+        newLoanAmountField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyTyped(KeyEvent e) {
+                char c = e.getKeyChar();
+                if (!Character.isDigit(c)) {
+                    e.consume(); // Ignore non-numeric characters
+                }
+            }
+        });
+
+        Object[] message = {
+                "Enter the new loan amount:", newLoanAmountField
+        };
+
+        int result = JOptionPane.showConfirmDialog(null, message, "Update Loan", JOptionPane.OK_CANCEL_OPTION);
+
+        if (result == JOptionPane.OK_OPTION) {
+            String newLoanAmountStr = newLoanAmountField.getText();
+            if (!newLoanAmountStr.isEmpty()) {
+                try {
+                    int newLoanAmount = Integer.parseInt(newLoanAmountStr);
+
+                    // Update the selected loan in the database
+                    try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
+                        String sql = "UPDATE Loan SET LoanAmount = ? WHERE Eid = ? AND Date = ?";
+                        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+                            preparedStatement.setInt(1, newLoanAmount);
+                            preparedStatement.setInt(2, eid);
+                            preparedStatement.setString(3, date);
+
+                            int rowsAffected = preparedStatement.executeUpdate();
+                            if (rowsAffected > 0) {
+                                JOptionPane.showMessageDialog(null, "Loan updated successfully.");
+                                // Refresh the loans table after updating the loan
+                                refreshLoansTable(eid, (DefaultTableModel) loansTable.getModel());
+                            } else {
+                                JOptionPane.showMessageDialog(null, "Failed to update the loan.");
+                            }
+                        }
+                    } catch (SQLException ex) {
+                        ex.printStackTrace();
+                        // Handle the exception appropriately
+                    }
+                } catch (NumberFormatException e) {
+                    JOptionPane.showMessageDialog(null, "Please enter a valid number for the loan amount.");
+                }
+            } else {
+                JOptionPane.showMessageDialog(null, "Please enter a valid loan amount.");
+            }
+        }
+    }
+
+    private void refreshLoansTable(int eid, DefaultTableModel loansTableModel) {
+        // Clear existing rows
+        loansTableModel.setRowCount(0);
+
+        // Fetch and display loans for the selected employee
+        try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
+            String sql = "SELECT LoanAmount, Date FROM Loan WHERE Eid = ?";
+            try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+                preparedStatement.setInt(1, eid);
+
+                try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                    while (resultSet.next()) {
+                        Object[] rowData = {
+                                resultSet.getInt("LoanAmount"),
+                                resultSet.getString("Date")
+                        };
+                        loansTableModel.addRow(rowData);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            // Handle the exception appropriately
+        }
+    }
+
+    private void deleteSelectedLoan(int eid, JTable loansTable) {
+        int selectedRow = loansTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(null, "Please select a loan to delete.");
+            return;
+        }
+
+        String date = loansTable.getValueAt(selectedRow, 1).toString();
+
+        // Delete the selected loan from the database
+        try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
+            String sql = "DELETE FROM Loan WHERE Eid = ? AND Date = ?";
+            try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+                preparedStatement.setInt(1, eid);
+                preparedStatement.setString(2, date);
+
                 int rowsAffected = preparedStatement.executeUpdate();
                 if (rowsAffected > 0) {
+                    // Remove the selected row from the table model
+                    ((DefaultTableModel) loansTable.getModel()).removeRow(selectedRow);
                     JOptionPane.showMessageDialog(null, "Loan removed successfully.");
-                    // Refresh the table after removing the loan
-                    loadEmployeeData();
                 } else {
                     JOptionPane.showMessageDialog(null, "Failed to remove the loan.");
                 }
             }
         } catch (SQLException e) {
             e.printStackTrace();
-            // Handle the exception appropriately
+            JOptionPane.showMessageDialog(null, "Error occurred: " + e.getMessage());
         }
     }
 
@@ -237,38 +455,6 @@ public class EmployeeLoanAppGUI {
                     } else {
                         JOptionPane.showMessageDialog(null, "Department info not found for selected employee.");
                     }
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-            // Handle the exception appropriately
-        }
-    }
-
-    private void applyNewLoanForSelectedEmployee() {
-        int selectedRow = employeeTable.getSelectedRow();
-        if (selectedRow == -1) {
-            JOptionPane.showMessageDialog(null, "Please select an employee to apply a new loan.");
-            return;
-        }
-
-        int eid = (int) tableModel.getValueAt(selectedRow, 0);
-
-        int newLoanAmount = Integer.parseInt(JOptionPane.showInputDialog("Enter new loan amount:"));
-
-        try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
-            String sql = "INSERT INTO Loan (Eid, LoanAmount, Date) VALUES (?, ?, CURRENT_DATE)";
-            try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
-                preparedStatement.setInt(1, eid);
-                preparedStatement.setInt(2, newLoanAmount);
-
-                int rowsAffected = preparedStatement.executeUpdate();
-                if (rowsAffected > 0) {
-                    JOptionPane.showMessageDialog(null, "New loan applied successfully.");
-                    // Refresh the table after applying a new loan
-                    loadEmployeeData();
-                } else {
-                    JOptionPane.showMessageDialog(null, "Failed to apply a new loan.");
                 }
             }
         } catch (SQLException e) {
@@ -394,8 +580,22 @@ public class EmployeeLoanAppGUI {
         panel.add(new JLabel("DeptCode:"));
         panel.add(deptCodeComboBox);
 
-        int result = JOptionPane.showConfirmDialog(null, panel, "Update Employee",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        int result;
+        do {
+            result = JOptionPane.showConfirmDialog(null, panel, "Update Employee",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+            if (result == JOptionPane.OK_OPTION) {
+                // Validate first name and last name
+                String firstName = firstNameField.getText().trim();
+                String lastName = lastNameField.getText().trim();
+
+                if (firstName.isEmpty() || lastName.isEmpty()) {
+                    JOptionPane.showMessageDialog(null, "Please enter both first name and last name.");
+                }
+            }
+        } while (result == JOptionPane.OK_OPTION
+                && (firstNameField.getText().isEmpty() || lastNameField.getText().isEmpty()));
 
         if (result == JOptionPane.OK_OPTION) {
             updateEmployee(rowData[0].toString()); // Pass the Eid to updateEmployee
@@ -403,8 +603,13 @@ public class EmployeeLoanAppGUI {
     }
 
     private void updateEmployee(String eid) {
-        String fullName = firstNameField.getText() + " " + middleInitialField.getText() +
-                ". " + lastNameField.getText();
+        String fullName;
+        if (!middleInitialField.getText().equals("")) {
+            fullName = firstNameField.getText() + " " + middleInitialField.getText() + ". " + lastNameField.getText();
+        } else {
+            fullName = firstNameField.getText() + " " + lastNameField.getText();
+        }
+
         String position = (String) positionComboBox.getSelectedItem();
         String age = (String) ageComboBox.getSelectedItem();
         String salaryRange = (String) salaryRangeComboBox.getSelectedItem();
@@ -531,8 +736,22 @@ public class EmployeeLoanAppGUI {
         panel.add(new JLabel("DeptCode:"));
         panel.add(deptCodeComboBox);
 
-        int result = JOptionPane.showConfirmDialog(null, panel, "Add New Employee",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        int result;
+        do {
+            result = JOptionPane.showConfirmDialog(null, panel, "Add New Employee",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+            if (result == JOptionPane.OK_OPTION) {
+                // Validate first name and last name
+                String firstName = firstNameField.getText().trim();
+                String lastName = lastNameField.getText().trim();
+
+                if (firstName.isEmpty() || lastName.isEmpty()) {
+                    JOptionPane.showMessageDialog(null, "Please enter both first name and last name.");
+                }
+            }
+        } while (result == JOptionPane.OK_OPTION
+                && (firstNameField.getText().isEmpty() || lastNameField.getText().isEmpty()));
 
         if (result == JOptionPane.OK_OPTION) {
             insertEmployee();
@@ -548,15 +767,21 @@ public class EmployeeLoanAppGUI {
     }
 
     private void insertEmployee() {
-        String fullName = firstNameField.getText() + " " + middleInitialField.getText() +
-                ". " + lastNameField.getText();
+        String fullName;
+        if (!middleInitialField.getText().equals("")) {
+            fullName = firstNameField.getText() + " " + middleInitialField.getText() + ". " + lastNameField.getText();
+        } else {
+            fullName = firstNameField.getText() + " " + lastNameField.getText();
+        }
+
         String position = (String) positionComboBox.getSelectedItem();
         String age = (String) ageComboBox.getSelectedItem();
         String salaryRange = (String) salaryRangeComboBox.getSelectedItem();
         String address = (String) addressComboBox.getSelectedItem();
         String deptCode = (String) deptCodeComboBox.getSelectedItem();
 
-        try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
+        try (
+                Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
             // Insert into EmployeeInfo table with auto-incrementing Eid
             String employeeInfoSql = "INSERT INTO EmployeeInfo (Name, Position, Salary, Age, Address, DeptCode) " +
                     "VALUES (?, ?, ?, ?, ?, ?)";
