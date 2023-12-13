@@ -18,5 +18,5 @@ $cfg['Servers'][$i]['password'] = 'your_password';
 
 ```
 javac EmployeeLoanApp.java
-java -classpath /usr/share/java/mariadb-jdbc/mariadb-java-client.jar:. EmployeeLoanApp
+java -classpath /usr/share/java/mariadb-jdbc/mariadb-java-client.jar:. EmployeeLoanAppGUI
 ```
