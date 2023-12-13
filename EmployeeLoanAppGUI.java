@@ -17,7 +17,7 @@ public class EmployeeLoanAppGUI {
 
     private JTextField firstNameField;
     private JTextField lastNameField;
-    // private JTextField middleInitialField;
+    private JTextField middleInitialField;
     private JComboBox<String> positionComboBox;
     private JComboBox<String> ageComboBox;
     private JComboBox<String> salaryRangeComboBox;
@@ -529,6 +529,17 @@ public class EmployeeLoanAppGUI {
                 }
             }
         });
+        middleInitialField = new JTextField();
+        middleInitialField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyTyped(KeyEvent e) {
+                char c = e.getKeyChar();
+                if (!Character.isLetter(c)) {
+                    e.consume(); // Ignore non-alphabetic characters
+                }
+            }
+        });
+
         positionComboBox = new JComboBox<>(new String[] { "Sales", "Secretary", "Manager", "Developer", "Analyst" });
         ageComboBox = new JComboBox<>(generateAgeRangeArray());
         salaryRangeComboBox = new JComboBox<>(new String[] { "Below 10000", "10000-50000", "Above 50000" });
@@ -540,8 +551,8 @@ public class EmployeeLoanAppGUI {
         String[] nameParts = fullName.split(" ");
 
         firstNameField.setText(nameParts.length > 0 ? nameParts[0] : "");
-        lastNameField.setText(nameParts.length > 1 ? nameParts[1] : "");
-        // middleInitialField.setText(nameParts.length > 2 ? nameParts[2] : "");
+        lastNameField.setText(nameParts.length > 1 ? nameParts[nameParts.length - 1] : "");
+        middleInitialField.setText(nameParts.length > 2 ? nameParts[1] : "");
 
         positionComboBox.setSelectedItem(rowData[2]);
         ageComboBox.setSelectedItem(rowData[4].toString());
@@ -554,6 +565,8 @@ public class EmployeeLoanAppGUI {
         panel.add(firstNameField);
         panel.add(new JLabel("Last Name:"));
         panel.add(lastNameField);
+        panel.add(new JLabel("Middle Initial:"));
+        panel.add(middleInitialField);
         panel.add(new JLabel("Position:"));
         panel.add(positionComboBox);
         panel.add(new JLabel("Age:"));
@@ -590,9 +603,9 @@ public class EmployeeLoanAppGUI {
     private void updateEmployee(String eid) {
         String firstName = firstNameField.getText();
         String lastName = lastNameField.getText();
-        // String middleInitial = middleInitialField.getText();
-        String middleInitial = "";
-        String fullName = firstName + " " + (middleInitial.isEmpty() ? "" : middleInitial + " ") + lastName;
+        String middleInitial = middleInitialField.getText();
+        String fullName = firstName + " " + (middleInitial.length() == 1 ? middleInitial + ". "
+                : (middleInitial.length() > 1 ? middleInitial : "")) + lastName;
 
         String position = (String) positionComboBox.getSelectedItem();
         String age = (String) ageComboBox.getSelectedItem();
@@ -683,6 +696,16 @@ public class EmployeeLoanAppGUI {
             }
         });
 
+        middleInitialField = new JTextField();
+        middleInitialField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyTyped(KeyEvent e) {
+                char c = e.getKeyChar();
+                if (!Character.isLetter(c)) {
+                    e.consume(); // Ignore non-alphabetic characters
+                }
+            }
+        });
 
         positionComboBox = new JComboBox<>(new String[] { "Sales", "Secretary", "Manager", "Developer", "Analyst" });
         ageComboBox = new JComboBox<>(generateAgeRangeArray());
@@ -697,6 +720,8 @@ public class EmployeeLoanAppGUI {
         panel.add(firstNameField);
         panel.add(new JLabel("Last Name:"));
         panel.add(lastNameField);
+        panel.add(new JLabel("Middle Initial:"));
+        panel.add(middleInitialField);
         panel.add(new JLabel("Position:"));
         panel.add(positionComboBox);
         panel.add(new JLabel("Age:"));
@@ -741,8 +766,9 @@ public class EmployeeLoanAppGUI {
     private void insertEmployee() {
         String firstName = firstNameField.getText();
         String lastName = lastNameField.getText();
-        String middleInitial = "";
-        String fullName = firstName + " " + (middleInitial.isEmpty() ? "" : middleInitial + ". ") + lastName;
+        String middleInitial = middleInitialField.getText();
+        String fullName = firstName + " " + (middleInitial.length() == 1 ? middleInitial + ". "
+                : (middleInitial.length() > 1 ? middleInitial : "")) + lastName;
 
         String position = (String) positionComboBox.getSelectedItem();
         String age = (String) ageComboBox.getSelectedItem();
