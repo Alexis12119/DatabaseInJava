@@ -99,7 +99,7 @@ public class EmployeeLoanAppGUI {
             }
         } catch (SQLException e) {
             e.printStackTrace();
-            // Handle the exception appropriately
+
         }
     }
 
@@ -127,7 +127,7 @@ public class EmployeeLoanAppGUI {
             }
         } catch (SQLException e) {
             e.printStackTrace();
-            // Handle the exception appropriately
+
         }
     }
 
@@ -138,7 +138,7 @@ public class EmployeeLoanAppGUI {
         JButton updateEmployeeBtn = new JButton("Update Employee");
         JButton deleteEmployeeBtn = new JButton("Delete Employee");
         JButton showLoanButton = new JButton("Show Loan Amount");
-        JButton getDeptInfoButton = new JButton("Get Department Info"); // Add the new button
+        JButton getDeptInfoButton = new JButton("Get Department Info");
         JButton manageLoansButton = new JButton("Manage Loans");
 
         addEmployeeBtn.addActionListener(e -> showAddEmployeeDialog());
@@ -148,7 +148,7 @@ public class EmployeeLoanAppGUI {
         getDeptInfoButton.addActionListener(e -> getDeptInfoForSelectedEmployee());
         manageLoansButton.addActionListener(e -> manageLoansForSelectedEmployee());
 
-        buttonPanel.setLayout(new GridLayout(2, 3)); // Adjust the number of rows and columns as needed
+        buttonPanel.setLayout(new GridLayout(2, 3));
 
         buttonPanel.add(addEmployeeBtn);
         buttonPanel.add(updateEmployeeBtn);
@@ -193,19 +193,20 @@ public class EmployeeLoanAppGUI {
 
         int eid = (int) tableModel.getValueAt(selectedRow, 0);
 
-        // Fetch loans for the selected employee from the database
         DefaultTableModel loansTableModel = new DefaultTableModel();
+        loansTableModel.addColumn("Loan ID");
         loansTableModel.addColumn("Loan Amount");
         loansTableModel.addColumn("Date");
 
         try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
-            String sql = "SELECT LoanAmount, Date FROM Loan WHERE Eid = ?";
+            String sql = "SELECT LoanID, LoanAmount, Date FROM Loan WHERE Eid = ?";
             try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
                 preparedStatement.setInt(1, eid);
 
                 try (ResultSet resultSet = preparedStatement.executeQuery()) {
                     while (resultSet.next()) {
                         Object[] rowData = {
+                                resultSet.getInt("LoanID"),
                                 resultSet.getInt("LoanAmount"),
                                 resultSet.getString("Date")
                         };
@@ -302,12 +303,36 @@ public class EmployeeLoanAppGUI {
                     }
                 } catch (SQLException ex) {
                     ex.printStackTrace();
-                    // Handle the exception appropriately
+
                     JOptionPane.showMessageDialog(null, "Error occurred: " + ex.getMessage());
                 }
             } else {
                 JOptionPane.showMessageDialog(null, "Please enter a valid loan amount.");
             }
+        }
+    }
+
+    private void refreshLoansTable(int eid, DefaultTableModel loansTableModel) {
+        loansTableModel.setRowCount(0);
+
+        try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
+            String sql = "SELECT LoanID, LoanAmount, Date FROM Loan WHERE Eid = ?";
+            try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+                preparedStatement.setInt(1, eid);
+
+                try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                    while (resultSet.next()) {
+                        Object[] rowData = {
+                                resultSet.getInt("LoanID"),
+                                resultSet.getInt("LoanAmount"),
+                                resultSet.getString("Date")
+                        };
+                        loansTableModel.addRow(rowData);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
@@ -318,14 +343,13 @@ public class EmployeeLoanAppGUI {
             return;
         }
 
-        // Assuming that you want to update the loan amount
-        String date = loansTable.getValueAt(selectedRow, 1).toString();
+        int loanId = (int) loansTable.getValueAt(selectedRow, 0);
 
-        // Prompt the user for the new loan amount
-        JTextField newLoanAmountField = new JTextField();
-        newLoanAmountField.setColumns(10);
+        // Create text fields for updating loan information
+        JTextField loanAmountField = new JTextField();
+        loanAmountField.setColumns(10);
 
-        newLoanAmountField.addKeyListener(new KeyAdapter() {
+        loanAmountField.addKeyListener(new KeyAdapter() {
             @Override
             public void keyTyped(KeyEvent e) {
                 char c = e.getKeyChar();
@@ -336,70 +360,37 @@ public class EmployeeLoanAppGUI {
         });
 
         Object[] message = {
-                "Enter the new loan amount:", newLoanAmountField
+                "Enter new loan amount:", loanAmountField
         };
 
         int result = JOptionPane.showConfirmDialog(null, message, "Update Loan", JOptionPane.OK_CANCEL_OPTION);
 
         if (result == JOptionPane.OK_OPTION) {
-            String newLoanAmountStr = newLoanAmountField.getText();
-            if (!newLoanAmountStr.isEmpty()) {
-                try {
-                    int newLoanAmount = Integer.parseInt(newLoanAmountStr);
+            String loanAmountStr = loanAmountField.getText();
+            if (!loanAmountStr.isEmpty()) {
+                int newLoanAmount = Integer.parseInt(loanAmountStr);
 
-                    // Update the selected loan in the database
-                    try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
-                        String sql = "UPDATE Loan SET LoanAmount = ? WHERE Eid = ? AND Date = ?";
-                        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
-                            preparedStatement.setInt(1, newLoanAmount);
-                            preparedStatement.setInt(2, eid);
-                            preparedStatement.setString(3, date);
+                try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
+                    String sql = "UPDATE Loan SET LoanAmount = ? WHERE LoanID = ?";
+                    try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+                        preparedStatement.setInt(1, newLoanAmount);
+                        preparedStatement.setInt(2, loanId);
 
-                            int rowsAffected = preparedStatement.executeUpdate();
-                            if (rowsAffected > 0) {
-                                JOptionPane.showMessageDialog(null, "Loan updated successfully.");
-                                // Refresh the loans table after updating the loan
-                                refreshLoansTable(eid, (DefaultTableModel) loansTable.getModel());
-                            } else {
-                                JOptionPane.showMessageDialog(null, "Failed to update the loan.");
-                            }
+                        int rowsAffected = preparedStatement.executeUpdate();
+                        if (rowsAffected > 0) {
+                            JOptionPane.showMessageDialog(null, "Loan updated successfully.");
+                            refreshLoansTable(eid, (DefaultTableModel) loansTable.getModel());
+                        } else {
+                            JOptionPane.showMessageDialog(null, "Failed to update the loan.");
                         }
-                    } catch (SQLException ex) {
-                        ex.printStackTrace();
-                        // Handle the exception appropriately
                     }
-                } catch (NumberFormatException e) {
-                    JOptionPane.showMessageDialog(null, "Please enter a valid number for the loan amount.");
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                    JOptionPane.showMessageDialog(null, "Error occurred: " + ex.getMessage());
                 }
             } else {
                 JOptionPane.showMessageDialog(null, "Please enter a valid loan amount.");
             }
-        }
-    }
-
-    private void refreshLoansTable(int eid, DefaultTableModel loansTableModel) {
-        // Clear existing rows
-        loansTableModel.setRowCount(0);
-
-        // Fetch and display loans for the selected employee
-        try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
-            String sql = "SELECT LoanAmount, Date FROM Loan WHERE Eid = ?";
-            try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
-                preparedStatement.setInt(1, eid);
-
-                try (ResultSet resultSet = preparedStatement.executeQuery()) {
-                    while (resultSet.next()) {
-                        Object[] rowData = {
-                                resultSet.getInt("LoanAmount"),
-                                resultSet.getString("Date")
-                        };
-                        loansTableModel.addRow(rowData);
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-            // Handle the exception appropriately
         }
     }
 
@@ -410,27 +401,33 @@ public class EmployeeLoanAppGUI {
             return;
         }
 
-        String date = loansTable.getValueAt(selectedRow, 1).toString();
+        int loanId = (int) loansTable.getValueAt(selectedRow, 0);
 
-        // Delete the selected loan from the database
-        try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
-            String sql = "DELETE FROM Loan WHERE Eid = ? AND Date = ?";
-            try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
-                preparedStatement.setInt(1, eid);
-                preparedStatement.setString(2, date);
+        // Display a confirmation dialog
+        int confirmResult = JOptionPane.showConfirmDialog(
+                null,
+                "Are you sure you want to delete this loan?",
+                "Confirm Deletion",
+                JOptionPane.YES_NO_OPTION);
 
-                int rowsAffected = preparedStatement.executeUpdate();
-                if (rowsAffected > 0) {
-                    // Remove the selected row from the table model
-                    ((DefaultTableModel) loansTable.getModel()).removeRow(selectedRow);
-                    JOptionPane.showMessageDialog(null, "Loan removed successfully.");
-                } else {
-                    JOptionPane.showMessageDialog(null, "Failed to remove the loan.");
+        if (confirmResult == JOptionPane.YES_OPTION) {
+            try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
+                String sql = "DELETE FROM Loan WHERE LoanID = ?";
+                try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+                    preparedStatement.setInt(1, loanId);
+
+                    int rowsAffected = preparedStatement.executeUpdate();
+                    if (rowsAffected > 0) {
+                        ((DefaultTableModel) loansTable.getModel()).removeRow(selectedRow);
+                        JOptionPane.showMessageDialog(null, "Loan removed successfully.");
+                    } else {
+                        JOptionPane.showMessageDialog(null, "Failed to remove the loan.");
+                    }
                 }
+            } catch (SQLException e) {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(null, "Error occurred: " + e.getMessage());
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Error occurred: " + e.getMessage());
         }
     }
 
@@ -459,11 +456,11 @@ public class EmployeeLoanAppGUI {
             }
         } catch (SQLException e) {
             e.printStackTrace();
-            // Handle the exception appropriately
+
         }
     }
 
-    // Add this method to search for employees by name
+    // Search for employees by name
     private void searchEmployee() {
         String searchTerm = searchField.getText();
 
@@ -492,7 +489,7 @@ public class EmployeeLoanAppGUI {
             }
         } catch (SQLException e) {
             e.printStackTrace();
-            // Handle the exception appropriately
+
         }
     }
 
@@ -534,7 +531,7 @@ public class EmployeeLoanAppGUI {
             @Override
             public void keyTyped(KeyEvent e) {
                 char c = e.getKeyChar();
-                if (!Character.isLetter(c)) {
+                if (!Character.isLetter(c) || middleInitialField.getText().length() >= 1) {
                     e.consume(); // Ignore non-alphabetic characters
                 }
             }
@@ -604,8 +601,8 @@ public class EmployeeLoanAppGUI {
         String firstName = firstNameField.getText();
         String lastName = lastNameField.getText();
         String middleInitial = middleInitialField.getText();
-        String fullName = firstName + " " + (middleInitial.length() == 1 ? middleInitial + ". "
-                : (middleInitial.length() > 1 ? middleInitial : "")) + lastName;
+        String fullName = firstName + " " + (middleInitial.length() >= 1 ? middleInitial + ". "
+                : "") + lastName;
 
         String position = (String) positionComboBox.getSelectedItem();
         String age = (String) ageComboBox.getSelectedItem();
@@ -701,7 +698,7 @@ public class EmployeeLoanAppGUI {
             @Override
             public void keyTyped(KeyEvent e) {
                 char c = e.getKeyChar();
-                if (!Character.isLetter(c)) {
+                if (!Character.isLetter(c) || middleInitialField.getText().length() >= 1) {
                     e.consume(); // Ignore non-alphabetic characters
                 }
             }
@@ -767,8 +764,8 @@ public class EmployeeLoanAppGUI {
         String firstName = firstNameField.getText();
         String lastName = lastNameField.getText();
         String middleInitial = middleInitialField.getText();
-        String fullName = firstName + " " + (middleInitial.length() == 1 ? middleInitial + ". "
-                : (middleInitial.length() > 1 ? middleInitial : "")) + lastName;
+        String fullName = firstName + " " + (middleInitial.length() >= 1 ? middleInitial + ". "
+                : "") + lastName;
 
         String position = (String) positionComboBox.getSelectedItem();
         String age = (String) ageComboBox.getSelectedItem();
@@ -776,31 +773,56 @@ public class EmployeeLoanAppGUI {
         String address = (String) addressComboBox.getSelectedItem();
         String deptCode = (String) deptCodeComboBox.getSelectedItem();
 
-        try (
-                Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
-            // Insert into EmployeeInfo table with auto-incrementing Eid
-            String employeeInfoSql = "INSERT INTO EmployeeInfo (Name, Position, Salary, Age, Address, DeptCode) " +
-                    "VALUES (?, ?, ?, ?, ?, ?)";
-            try (PreparedStatement employeeInfoStatement = connection
-                    .prepareStatement(employeeInfoSql, Statement.RETURN_GENERATED_KEYS)) {
-                employeeInfoStatement.setString(1, fullName);
-                employeeInfoStatement.setString(2, position);
-                employeeInfoStatement.setString(3, salaryRange);
-                employeeInfoStatement.setInt(4, Integer.parseInt(age));
-                employeeInfoStatement.setString(5, address);
-                employeeInfoStatement.setString(6, deptCode);
+        int newEid = generateNextEid();
 
-                int rowsAffected = employeeInfoStatement.executeUpdate();
+        try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
+            String insertSql = "INSERT INTO EmployeeInfo (Eid, Name, Position, Salary, Age, Address, DeptCode) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)";
+            try (PreparedStatement insertStatement = connection.prepareStatement(insertSql)) {
+                // Use the generated Eid for the new employee
+                insertStatement.setInt(1, newEid);
+                insertStatement.setString(2, fullName);
+                insertStatement.setString(3, position);
+                insertStatement.setString(4, salaryRange);
+                insertStatement.setInt(5, Integer.parseInt(age));
+                insertStatement.setString(6, address);
+                insertStatement.setString(7, deptCode);
+
+                int rowsAffected = insertStatement.executeUpdate();
                 if (rowsAffected > 0) {
-                    // Refresh the table after insertion
+                    JOptionPane.showMessageDialog(null, "Employee added successfully.");
+                    // Refresh the employee table after adding a new employee
                     loadEmployeeData();
                 } else {
-                    JOptionPane.showMessageDialog(null, "Failed to add the new employee.");
+                    JOptionPane.showMessageDialog(null, "Failed to add a new employee.");
                 }
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Error occurred: " + e.getMessage());
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+
+            JOptionPane.showMessageDialog(null, "Error occurred: " + ex.getMessage());
+        }
+    }
+
+    // Generate the next Eid for a new employee
+    private int generateNextEid() {
+        try (Connection connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD)) {
+            String maxEidSql = "SELECT MAX(Eid) AS MaxEid FROM EmployeeInfo";
+            try (PreparedStatement maxEidStatement = connection.prepareStatement(maxEidSql)) {
+                try (ResultSet maxEidResultSet = maxEidStatement.executeQuery()) {
+                    if (maxEidResultSet.next()) {
+                        // Increment the maximum Eid to get the next in sequence
+                        return maxEidResultSet.getInt("MaxEid") + 1;
+                    } else {
+                        // Handle the case when there are no existing records
+                        return 1;
+                    }
+                }
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error occurred: " + ex.getMessage());
+            return -1;
         }
     }
 
