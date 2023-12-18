@@ -601,8 +601,8 @@ public class EmployeeLoanAppGUI {
         String firstName = firstNameField.getText();
         String lastName = lastNameField.getText();
         String middleInitial = middleInitialField.getText();
-        String fullName = firstName + " " + (middleInitial.length() >= 1 ? middleInitial + ". "
-                : "") + lastName;
+        String fullName = firstName + " " + (middleInitial.length() == 1 ? middleInitial + ". "
+                : (middleInitial.length() == 2) ? middleInitial + " " : "") + lastName;
 
         String position = (String) positionComboBox.getSelectedItem();
         String age = (String) ageComboBox.getSelectedItem();
@@ -764,7 +764,7 @@ public class EmployeeLoanAppGUI {
         String firstName = firstNameField.getText();
         String lastName = lastNameField.getText();
         String middleInitial = middleInitialField.getText();
-        String fullName = firstName + " " + (middleInitial.length() >= 1 ? middleInitial + ". "
+        String fullName = firstName + " " + (middleInitial.length() == 1 ? middleInitial + ". "
                 : "") + lastName;
 
         String position = (String) positionComboBox.getSelectedItem();
